@@ -1,10 +1,16 @@
 /**
  * Typed API client — all backend calls go through this module.
+ * In development: Vite proxies /api → localhost:8000
+ * In production:  VITE_API_URL points to the IBM Code Engine backend URL
  */
 import axios from 'axios'
 
+const BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api'
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: BASE,
   headers: { 'Content-Type': 'application/json' },
 })
 
