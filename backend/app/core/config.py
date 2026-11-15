@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     WATSONX_URL: str = "https://us-south.ml.cloud.ibm.com"
 
     # Frontend URL (set to Vercel URL in Railway env vars)
-    FRONTEND_URL: str = ""
+    FRONTEND_URL: str = "http://localhost:5173"
+
+    # Email (SendGrid)
+    SENDGRID_API_KEY: str = ""
+    EMAIL_FROM: str = "noreply@primeledger.ai"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -29,3 +29,11 @@ class User(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Invite / password-reset tokens
+    invite_token: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    invite_token_expiry: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reset_token: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    reset_token_expiry: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # True = account not yet set up (invited but no password chosen)
+    pending_setup: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -31,21 +31,33 @@ export default function AppLayout() {
           <NavItem to="/app/exceptions" icon="alert">Exceptions</NavItem>
           <NavItem to="/app/import" icon="upload">Import CSV</NavItem>
           <NavItem to="/app/audit" icon="shield">Audit Trail</NavItem>
+          {/* Only show Users link to admins */}
+          {user?.role === 'admin' && (
+            <NavItem to="/app/users" icon="users">Users</NavItem>
+          )}
         </nav>
 
+        {/* Profile + sign out */}
         <div className="p-4 border-t border-gray-100">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700">
+          <NavLink
+            to="/app/profile"
+            className={({ isActive }) =>
+              `flex items-center gap-2 rounded-lg px-2 py-2 mb-2 transition-colors ${
+                isActive ? 'bg-blue-50' : 'hover:bg-gray-100'
+              }`
+            }
+          >
+            <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700 shrink-0">
               {user?.full_name?.[0] ?? '?'}
             </div>
             <div className="min-w-0">
               <div className="text-xs font-medium text-gray-900 truncate">{user?.full_name}</div>
               <div className="text-xs text-gray-500 capitalize">{user?.role}</div>
             </div>
-          </div>
+          </NavLink>
           <button
             onClick={handleLogout}
-            className="w-full text-left text-xs text-gray-500 hover:text-gray-900 transition-colors"
+            className="w-full text-left text-xs text-gray-500 hover:text-gray-900 transition-colors px-2"
           >
             Sign out →
           </button>
@@ -60,16 +72,10 @@ export default function AppLayout() {
   )
 }
 
-function NavItem({
-  to,
-  children,
-  icon,
-}: {
-  to: string
-  children: React.ReactNode
-  icon: 'chart' | 'alert' | 'shield' | 'upload'
-}) {
-  const icons = {
+type IconKey = 'chart' | 'alert' | 'upload' | 'shield' | 'users'
+
+function NavItem({ to, children, icon }: { to: string; children: React.ReactNode; icon: IconKey }) {
+  const icons: Record<IconKey, React.ReactNode> = {
     chart: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
         d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -85,6 +91,10 @@ function NavItem({
     shield: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
         d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    ),
+    users: (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
     ),
   }
   return (
