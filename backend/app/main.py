@@ -29,9 +29,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Allow localhost in dev + any Vercel/Railway domain in prod
+_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+# FRONTEND_URL env var is set in Railway to the Vercel URL after deploy
+if settings.FRONTEND_URL:
+    _CORS_ORIGINS.append(settings.FRONTEND_URL)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

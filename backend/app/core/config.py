@@ -14,10 +14,13 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
 
-    # watsonx (placeholder)
+    # watsonx
     WATSONX_API_KEY: str = ""
     WATSONX_PROJECT_ID: str = ""
     WATSONX_URL: str = "https://us-south.ml.cloud.ibm.com"
+
+    # Frontend URL (set to Vercel URL in Railway env vars)
+    FRONTEND_URL: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
