@@ -1,4 +1,96 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+
+// ── Request Access Form ───────────────────────────────────────────────────────
+
+function RequestAccessForm() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [company, setCompany] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    // In production this would POST to an API or CRM.
+    // For the prototype we just show a confirmation.
+    setSubmitted(true)
+  }
+
+  if (submitted) {
+    return (
+      <div className="max-w-md mx-auto text-center py-10">
+        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Request received</h3>
+        <p className="text-sm text-gray-500 mb-6">
+          We'll send a setup link to <strong>{email}</strong>. While you wait,{' '}
+          <Link to="/login" className="text-blue-600 hover:underline">try the demo</Link>.
+        </p>
+        <button
+          onClick={() => { setName(''); setEmail(''); setCompany(''); setSubmitted(false) }}
+          className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+        >
+          Submit another request
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="max-w-md mx-auto space-y-4"
+    >
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <label className="label">Full name</label>
+          <input
+            type="text"
+            className="input"
+            placeholder="Jane Smith"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label className="label">Work email</label>
+          <input
+            type="email"
+            className="input"
+            placeholder="jane@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <label className="label">Company</label>
+        <input
+          type="text"
+          className="input"
+          placeholder="Acme Corp"
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          required
+        />
+      </div>
+      <button type="submit" className="btn-primary w-full">
+        Request access
+      </button>
+      <p className="text-center text-xs text-gray-400 pt-1">
+        Already have an account?{' '}
+        <Link to="/login" className="text-blue-600 hover:underline">Sign in</Link>
+      </p>
+    </form>
+  )
+}
+
+// ── Landing Page ──────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   return (
@@ -22,6 +114,7 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link to="/login" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
+            <a href="#request-access" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign up</a>
             <Link to="/login" className="btn-primary text-xs px-4 py-2">Try the demo</Link>
           </div>
         </div>
@@ -262,6 +355,25 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* REQUEST ACCESS / SIGN UP */}
+      <section id="request-access" className="py-20 border-t border-gray-100">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="max-w-xl mx-auto text-center mb-10">
+            <div className="text-xs font-semibold tracking-widest text-blue-600 uppercase mb-3">Get started</div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Request access</h2>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              PrimeLedger is invite-only. Enter your details and your admin will receive a setup link
+              — or{' '}
+              <Link to="/login" className="text-blue-600 hover:underline">
+                try the demo now
+              </Link>{' '}
+              with no account required.
+            </p>
+          </div>
+          <RequestAccessForm />
         </div>
       </section>
 
