@@ -5,8 +5,9 @@ import { useAuth } from '../contexts/AuthContext'
 export default function LoginPage() {
   const { login, user } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('demo@primeledger.ai')
-  const [password, setPassword] = useState('demo1234')
+  // Start EMPTY — user types their own credentials
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -22,15 +23,29 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/app/dashboard', { replace: true })
     } catch {
-      setError('Invalid email or password. Try demo@primeledger.ai / demo1234')
+      setError('Incorrect email or password.')
     } finally {
       setLoading(false)
     }
   }
 
+  // Fill in demo credentials with one click
+  const fillDemo = (role: 'preparer' | 'approver' | 'admin') => {
+    const creds = {
+      preparer: { email: 'demo@primeledger.ai',     password: 'demo1234'    },
+      approver: { email: 'approver@primeledger.ai', password: 'approver123' },
+      admin:    { email: 'admin@primeledger.ai',    password: 'admin123'    },
+    }
+    setEmail(creds[role].email)
+    setPassword(creds[role].password)
+    setError('')
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
+
+        {/* Logo + heading */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2 justify-center mb-6">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -45,6 +60,7 @@ export default function LoginPage() {
           <p className="text-sm text-gray-500">Access your reconciliation workspace</p>
         </div>
 
+        {/* Login form */}
         <div className="card shadow-sm">
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -63,6 +79,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
+                placeholder="you@company.com"
               />
             </div>
             <div>
@@ -74,12 +91,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                placeholder="••••••••"
               />
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
-            <div className="text-center mt-3">
+            <div className="text-center">
               <Link to="/forgot-password" className="text-xs text-gray-500 hover:text-blue-600 transition-colors">
                 Forgot your password?
               </Link>
@@ -87,13 +105,28 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <div className="mt-5 p-4 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-          <div className="font-semibold mb-1.5">Demo credentials</div>
-          <div className="space-y-0.5">
-            <div><span className="font-medium">Preparer:</span> demo@primeledger.ai / demo1234</div>
-            <div><span className="font-medium">Approver:</span> approver@primeledger.ai / approver123</div>
-            <div><span className="font-medium">Admin:</span> admin@primeledger.ai / admin123</div>
+        {/* Demo credentials — clickable to fill the form */}
+        <div className="mt-5 p-4 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+          <div className="font-semibold mb-2">Try the demo — click a role to fill in credentials:</div>
+          <div className="flex gap-2 flex-wrap">
+            {(['preparer', 'approver', 'admin'] as const).map(role => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => fillDemo(role)}
+                className="px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors capitalize"
+              >
+                {role}
+              </button>
+            ))}
           </div>
+          <p className="mt-2 text-blue-600 text-xs">Click a role above, then click Sign in.</p>
+        </div>
+
+        {/* Sign up link */}
+        <div className="mt-4 text-center text-xs text-gray-500">
+          Don't have an account?{' '}
+          <span className="text-gray-700 font-medium">Ask your admin to invite you.</span>
         </div>
       </div>
     </div>

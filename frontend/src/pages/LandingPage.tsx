@@ -20,7 +20,10 @@ export default function LandingPage() {
             <a href="#controls" className="hover:text-gray-900 transition-colors">Controls</a>
             <a href="#who-its-for" className="hover:text-gray-900 transition-colors">Who it's for</a>
           </nav>
-          <Link to="/login" className="btn-primary text-xs px-4 py-2">Try the demo</Link>
+          <div className="flex items-center gap-3">
+            <Link to="/login" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
+            <Link to="/login" className="btn-primary text-xs px-4 py-2">Try the demo</Link>
+          </div>
         </div>
       </header>
 

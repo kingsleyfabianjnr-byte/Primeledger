@@ -27,13 +27,12 @@ import { authApi } from '../api/client'
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // localStorage may not be available in all jsdom environments
     if (typeof localStorage !== 'undefined' && localStorage.clear) {
       localStorage.clear()
     }
   })
 
-  it('renders login form with pre-filled demo credentials', () => {
+  it('renders login form with empty fields and demo role buttons', () => {
     ;(authApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('no token'))
     render(
       <MemoryRouter>
@@ -42,9 +41,31 @@ describe('LoginPage', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-    // h1 heading (there's also a button with "Sign in")
+    // heading
     expect(screen.getByRole('heading', { name: /Sign in/i })).toBeInTheDocument()
-    expect(screen.getByDisplayValue('demo@primeledger.ai')).toBeInTheDocument()
+    // fields start empty
+    const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement
+    const passwordInput = screen.getByLabelText(/Password/i) as HTMLInputElement
+    expect(emailInput.value).toBe('')
+    expect(passwordInput.value).toBe('')
+    // demo role buttons present
+    expect(screen.getByRole('button', { name: /preparer/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approver/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /admin/i })).toBeInTheDocument()
+  })
+
+  it('fills credentials when a demo role button is clicked', () => {
+    ;(authApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('no token'))
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /preparer/i }))
+    const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement
+    expect(emailInput.value).toBe('demo@primeledger.ai')
   })
 
   it('shows error on wrong credentials', async () => {
@@ -67,10 +88,10 @@ describe('LoginPage', () => {
     fireEvent.change(screen.getByLabelText(/Password/i), {
       target: { value: 'wrongpass' },
     })
-    fireEvent.submit(screen.getByRole('button', { name: /Sign in/i }))
+    fireEvent.submit(screen.getByRole('button', { name: /^Sign in$/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/Invalid email or password/i)).toBeInTheDocument()
+      expect(screen.getByText(/Incorrect email or password/i)).toBeInTheDocument()
     })
   })
 })
