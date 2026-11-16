@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { dashboardApi, reconciliationsApi, DashboardStats, Reconciliation } from '../api/client'
+import { dashboardApi, reconciliationsApi, contractsApi, DashboardStats, Reconciliation, Contract } from '../api/client'
 import clsx from 'clsx'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -162,15 +162,21 @@ function NewReconModal({
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showNewRecon, setShowNewRecon] = useState(false)
 
   const load = () => {
     setLoading(true)
-    dashboardApi
-      .get()
-      .then((res) => setStats(res.data))
+    Promise.all([
+      dashboardApi.get(),
+      contractsApi.list({ active_only: true }),
+    ])
+      .then(([dashRes, ctrRes]) => {
+        setStats(dashRes.data)
+        setContracts(ctrRes.data)
+      })
       .catch(() => setError('Failed to load dashboard'))
       .finally(() => setLoading(false))
   }
@@ -323,6 +329,40 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Active contracts widget */}
+      {contracts.length > 0 && (
+        <div className="mt-6 card p-0 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900">Active contracts</h2>
+            <Link to="/app/contracts" className="text-xs text-blue-600 hover:underline">
+              View all →
+            </Link>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {contracts.slice(0, 3).map((c) => {
+              const isOverrun = parseFloat(c.used_amount) > parseFloat(c.deployed_amount)
+              return (
+                <div key={c.id} className="px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">{c.name}</div>
+                    <div className="text-xs text-gray-400">{c.reference} · {c.counterparty}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={clsx('text-sm font-mono font-medium', isOverrun ? 'text-red-600' : 'text-green-700')}>
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: c.currency }).format(parseFloat(c.remaining_balance))} remaining
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      of {new Intl.NumberFormat('en-US', { style: 'currency', currency: c.currency }).format(parseFloat(c.deployed_amount))} deployed
+                      {c.scheduled_payment_amount && ` · ${new Intl.NumberFormat('en-US', { style: 'currency', currency: c.currency }).format(parseFloat(c.scheduled_payment_amount))}/mo`}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Quick actions */}
       <div className="mt-6 flex gap-3">
         <Link to="/app/exceptions" className="btn-primary text-sm">
@@ -330,6 +370,9 @@ export default function DashboardPage() {
         </Link>
         <Link to="/app/audit" className="btn-secondary text-sm">
           View audit trail
+        </Link>
+        <Link to="/app/contracts" className="btn-secondary text-sm">
+          Contracts
         </Link>
         <Link to="/app/import" className="btn-secondary text-sm">
           Import CSV

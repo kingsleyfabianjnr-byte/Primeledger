@@ -42,6 +42,7 @@ vi.mock('../api/client', () => {
     authApi: { me: vi.fn().mockRejectedValue(new Error('no token')) },
     dashboardApi: { get: vi.fn().mockResolvedValue({ data: stats }) },
     reconciliationsApi: { create: vi.fn().mockResolvedValue({ data: {} }) },
+    contractsApi: { list: vi.fn().mockResolvedValue({ data: [] }) },
     default: { interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } },
   }
 })

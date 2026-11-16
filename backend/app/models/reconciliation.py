@@ -35,6 +35,13 @@ class ExceptionStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class ExceptionSeverity(str, enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"   # e.g. stale items, overruns
+
+
 class AuditAction(str, enum.Enum):
     MATCH_CREATED = "match_created"
     EXCEPTION_RAISED = "exception_raised"
@@ -107,9 +114,18 @@ class BankTransaction(Base):
     )
     confidence_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 2), nullable=True)
     match_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # Contract linkage — set when this transaction is matched to a contract payment
+    contract_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contracts.id"), nullable=True
+    )
+    # True when the transaction lacks a reference/receipt and needs documentation
+    evidence_required: Mapped[bool] = mapped_column(Boolean, default=False)
 
     reconciliation: Mapped["Reconciliation"] = relationship(back_populates="transactions")
     ledger_entry: Mapped[Optional["LedgerEntry"]] = relationship(foreign_keys=[ledger_entry_id])
+    contract: Mapped[Optional["Contract"]] = relationship(  # noqa
+        foreign_keys=[contract_id]
+    )
 
 
 class LedgerEntry(Base):
@@ -127,6 +143,17 @@ class LedgerEntry(Base):
 
 
 class Exception(Base):
+    """
+    exception_type values:
+      timing            — transaction crossed a period boundary
+      duplicate         — possible double entry
+      missing_entry     — no ledger entry found
+      amount_mismatch   — bank vs ledger amount differs
+      fx                — foreign currency translation difference
+      undocumented_expense — no reference/receipt, requires evidence
+      stale_item        — unreconciled for >90 days / prior fiscal year
+      contract_variance — payment differs from contracted schedule
+    """
     __tablename__ = "exceptions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -136,13 +163,23 @@ class Exception(Base):
     )
     exception_number: Mapped[int] = mapped_column(Integer, nullable=False)
     exception_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    # e.g. "timing", "duplicate", "missing_entry", "amount_mismatch", "fx"
     description: Mapped[str] = mapped_column(Text, nullable=False)
     ai_explanation: Mapped[str] = mapped_column(Text, nullable=False)
     confidence_score: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
     suggested_debit: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     suggested_credit: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     suggested_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(18, 2), nullable=True)
+    severity: Mapped[ExceptionSeverity] = mapped_column(
+        SAEnum(ExceptionSeverity), default=ExceptionSeverity.MEDIUM
+    )
+    # How many days this item has been outstanding (populated at exception creation)
+    days_outstanding: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # For stale items — the original fiscal year the item belongs to
+    original_fiscal_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # For contract_variance — link to the contract
+    contract_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("contracts.id"), nullable=True
+    )
     status: Mapped[ExceptionStatus] = mapped_column(
         SAEnum(ExceptionStatus), default=ExceptionStatus.OPEN
     )
@@ -158,6 +195,9 @@ class Exception(Base):
         foreign_keys=[bank_transaction_id]
     )
     reviewed_by: Mapped[Optional["User"]] = relationship(foreign_keys=[reviewed_by_id])  # noqa
+    contract: Mapped[Optional["Contract"]] = relationship(  # noqa
+        foreign_keys=[contract_id]
+    )
 
 
 class AuditLog(Base):
@@ -185,3 +225,4 @@ class AuditLog(Base):
 
 # Import User here to avoid circular — just for type annotation above
 from app.models.user import User  # noqa: E402, F401
+from app.models.contract import Contract  # noqa: E402, F401

@@ -29,9 +29,9 @@ export default function AppLayout() {
         <nav className="flex-1 p-3 space-y-0.5">
           <NavItem to="/app/dashboard" icon="chart">Dashboard</NavItem>
           <NavItem to="/app/exceptions" icon="alert">Exceptions</NavItem>
+          <NavItem to="/app/contracts" icon="contract">Contracts</NavItem>
           <NavItem to="/app/import" icon="upload">Import CSV</NavItem>
           <NavItem to="/app/audit" icon="shield">Audit Trail</NavItem>
-          {/* Only show Users link to admins */}
           {user?.role === 'admin' && (
             <NavItem to="/app/users" icon="users">Users</NavItem>
           )}
@@ -72,7 +72,7 @@ export default function AppLayout() {
   )
 }
 
-type IconKey = 'chart' | 'alert' | 'upload' | 'shield' | 'users'
+type IconKey = 'chart' | 'alert' | 'upload' | 'shield' | 'users' | 'contract'
 
 function NavItem({ to, children, icon }: { to: string; children: React.ReactNode; icon: IconKey }) {
   const icons: Record<IconKey, React.ReactNode> = {
@@ -95,6 +95,10 @@ function NavItem({ to, children, icon }: { to: string; children: React.ReactNode
     users: (
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
         d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    ),
+    contract: (
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     ),
   }
   return (

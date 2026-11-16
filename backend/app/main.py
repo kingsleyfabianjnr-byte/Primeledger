@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.api import auth, dashboard, exceptions, reconciliations, audit, watsonx, csv_import, export, users
+from app.api import auth, dashboard, exceptions, reconciliations, audit, watsonx, csv_import, export, users, contracts
 
 
 @asynccontextmanager
@@ -55,6 +55,7 @@ app.include_router(watsonx.router)
 app.include_router(csv_import.router)
 app.include_router(export.router)
 app.include_router(users.router)
+app.include_router(contracts.router)
 
 
 @app.get("/health")

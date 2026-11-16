@@ -86,6 +86,7 @@ export interface Reconciliation {
 }
 
 export type ExceptionStatus = 'open' | 'pending_approval' | 'approved' | 'rejected'
+export type ExceptionSeverity = 'low' | 'medium' | 'high' | 'critical'
 
 export interface Exception {
   id: number
@@ -103,11 +104,53 @@ export interface Exception {
   bank_amount: string | null
   bank_description: string | null
   ledger_amount: string | null
+  severity: ExceptionSeverity | null
+  days_outstanding: number | null
+  original_fiscal_year: number | null
+  contract_id: number | null
   status: ExceptionStatus
   reviewed_by_id: number | null
   reviewed_at: string | null
   reviewer_note: string | null
   created_at: string
+}
+
+export type ContractStatus = 'active' | 'completed' | 'suspended' | 'overrun'
+export type PaymentStatus = 'expected' | 'matched' | 'overdue' | 'partial'
+
+export interface ContractPayment {
+  id: number
+  contract_id: number
+  bank_transaction_id: number | null
+  period_month: string | null
+  expected_amount: string | null
+  actual_amount: string | null
+  status: PaymentStatus
+  notes: string | null
+  created_at: string
+}
+
+export interface Contract {
+  id: number
+  reference: string
+  name: string
+  counterparty: string
+  bank_account_id: number
+  deployed_amount: string
+  used_amount: string
+  remaining_balance: string
+  utilization_pct: number
+  contract_start: string
+  contract_end: string | null
+  scheduled_payment_amount: string | null
+  payment_frequency: string | null
+  currency: string
+  description: string | null
+  status: ContractStatus
+  is_active: boolean
+  created_at: string
+  payments: ContractPayment[]
+  payment_count?: number
 }
 
 export type AuditAction =
@@ -188,6 +231,42 @@ export const auditApi = {
   list: (params?: { reconciliation_id?: number; limit?: number; offset?: number }) =>
     api.get<AuditLog[]>('/audit', { params }),
   get: (id: number) => api.get<AuditLog>(`/audit/${id}`),
+}
+
+export const contractsApi = {
+  list: (params?: { bank_account_id?: number; status?: ContractStatus; active_only?: boolean }) =>
+    api.get<Contract[]>('/contracts', { params }),
+  get: (id: number) => api.get<Contract>(`/contracts/${id}`),
+  create: (data: {
+    reference: string
+    name: string
+    counterparty: string
+    bank_account_id: number
+    deployed_amount: string
+    contract_start: string
+    contract_end?: string
+    scheduled_payment_amount?: string
+    payment_frequency?: string
+    currency?: string
+    description?: string
+  }) => api.post<Contract>('/contracts', data),
+  balance: (id: number) => api.get<{
+    deployed_amount: string
+    used_amount: string
+    remaining_balance: string
+    utilization_pct: number
+    is_overrun: boolean
+    payments_matched: number
+    payments_expected: number
+    payments_overdue: number
+    status: ContractStatus
+    currency: string
+  }>(`/contracts/${id}/balance`),
+  matchPayment: (id: number, data: {
+    bank_transaction_id: number
+    actual_amount: string
+    notes?: string
+  }) => api.post<ContractPayment>(`/contracts/${id}/payments/match`, data),
 }
 
 export const exportApi = {

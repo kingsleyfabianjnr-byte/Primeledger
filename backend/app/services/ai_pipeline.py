@@ -65,11 +65,14 @@ def _explanation_prompt(
 ) -> str:
     """Build a structured prompt for Granite to explain a reconciliation exception."""
     type_context = {
-        "timing":         "The transaction appears in the bank statement but not in the general ledger for this period.",
-        "duplicate":      "This transaction may be a duplicate of another entry already in the ledger.",
-        "missing_entry":  "No matching entry was found in the general ledger.",
-        "amount_mismatch": f"The bank shows ${amount:,.2f} but the ledger shows ${ledger_amount or 0:,.2f}.",
-        "fx":             "This transaction involves a foreign-currency amount with a potential translation difference.",
+        "timing":               "The transaction appears in the bank statement but not in the general ledger for this period.",
+        "duplicate":            "This transaction may be a duplicate of another entry already in the ledger.",
+        "missing_entry":        "No matching entry was found in the general ledger.",
+        "amount_mismatch":      f"The bank shows ${amount:,.2f} but the ledger shows ${ledger_amount or 0:,.2f}.",
+        "fx":                   "This transaction involves a foreign-currency amount with a potential translation difference.",
+        "undocumented_expense": f"A ${amount:,.2f} charge was recorded without a reference number, receipt, or supporting documentation.",
+        "stale_item":           "This item has been outstanding for an extended period (possibly crossing fiscal years) and was never properly reconciled.",
+        "contract_variance":    f"The payment of ${amount:,.2f} does not match the contracted scheduled amount. The variance must be investigated before closing.",
     }.get(exception_type, "An unclassified discrepancy was found.")
 
     return f"""### Bank Reconciliation Exception Analysis
@@ -134,22 +137,43 @@ _MOCK_EXPLANATIONS = {
         "rate used in the ledger, creating a translation difference. "
         "The difference should be recorded in the FX gain/loss account."
     ),
+    "undocumented_expense": (
+        "A ${bank_amt} charge labelled '{desc}' was posted without a reference number or "
+        "supporting receipt. Finance policy requires documentation for all expenses above $25. "
+        "Obtain a receipt or vendor invoice before this entry can be approved."
+    ),
+    "stale_item": (
+        "This item originated in fiscal year {fiscal_year} and has remained unreconciled "
+        "for over 90 days. Prior-period adjustments of this nature require controller approval "
+        "and may need to be posted to a suspense account pending resolution."
+    ),
+    "contract_variance": (
+        "The payment of ${bank_amt} does not match the contracted monthly amount of ${ledger_amt}. "
+        "The variance of ${diff} must be explained — either an approved change order, a partial "
+        "payment, or a billing error from the counterparty. Contract balance has been flagged."
+    ),
 }
 
 _MOCK_JOURNALS = {
-    "timing":         ("Dr 6200 Bank Fees", "Cr 1010 Operating Cash"),
-    "duplicate":      ("Dr 2100 Accounts Payable", "Cr 1010 Operating Cash"),
-    "missing_entry":  ("Dr 6500 Miscellaneous Expense", "Cr 1010 Operating Cash"),
-    "amount_mismatch": ("Dr 6200 Bank Fees", "Cr 1010 Operating Cash"),
-    "fx":             ("Dr 7100 FX Loss / Gain", "Cr 1010 Operating Cash"),
+    "timing":               ("Dr 6200 Bank Fees", "Cr 1010 Operating Cash"),
+    "duplicate":            ("Dr 2100 Accounts Payable", "Cr 1010 Operating Cash"),
+    "missing_entry":        ("Dr 6500 Miscellaneous Expense", "Cr 1010 Operating Cash"),
+    "amount_mismatch":      ("Dr 6200 Bank Fees", "Cr 1010 Operating Cash"),
+    "fx":                   ("Dr 7100 FX Loss / Gain", "Cr 1010 Operating Cash"),
+    "undocumented_expense": ("Dr 6500 Miscellaneous Expense", "Cr 1010 Operating Cash"),
+    "stale_item":           ("Dr 1990 Suspense Account", "Cr 2900 Prior Period Adjustment"),
+    "contract_variance":    ("Dr 2100 Accounts Payable", "Cr 1010 Operating Cash"),
 }
 
 _MOCK_CONFIDENCE = {
-    "timing": Decimal("0.94"),
-    "duplicate": Decimal("0.87"),
-    "missing_entry": Decimal("0.79"),
-    "amount_mismatch": Decimal("0.91"),
-    "fx": Decimal("0.88"),
+    "timing":               Decimal("0.94"),
+    "duplicate":            Decimal("0.87"),
+    "missing_entry":        Decimal("0.79"),
+    "amount_mismatch":      Decimal("0.91"),
+    "fx":                   Decimal("0.88"),
+    "undocumented_expense": Decimal("0.96"),
+    "stale_item":           Decimal("0.85"),
+    "contract_variance":    Decimal("0.93"),
 }
 
 
@@ -159,15 +183,23 @@ def _mock_explanation(
     description: str,
     amount: Decimal,
     ledger_amount: Optional[Decimal],
+    fiscal_year: Optional[int] = None,
 ) -> str:
     template = _MOCK_EXPLANATIONS.get(exception_type, _MOCK_EXPLANATIONS["missing_entry"])
     diff = abs(amount - (ledger_amount or amount))
+    # Derive fiscal year from bank_date if not provided
+    if not fiscal_year:
+        try:
+            fiscal_year = int(bank_date[:4])
+        except (ValueError, TypeError):
+            fiscal_year = datetime.now(timezone.utc).year
     return template.format(
         bank_date=bank_date,
         desc=description[:40],
         bank_amt=f"{amount:,.2f}",
         ledger_amt=f"{ledger_amount or 0:,.2f}",
         diff=f"{diff:,.2f}",
+        fiscal_year=fiscal_year,
     )
 
 

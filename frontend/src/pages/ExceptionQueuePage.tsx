@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { exceptionsApi, Exception, ExceptionStatus } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import clsx from 'clsx'
@@ -9,6 +10,9 @@ const TYPE_LABELS: Record<string, string> = {
   missing_entry: 'Missing entry',
   amount_mismatch: 'Amount mismatch',
   fx: 'FX difference',
+  undocumented_expense: 'Undocumented expense',
+  stale_item: 'Stale item',
+  contract_variance: 'Contract variance',
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -17,6 +21,16 @@ const TYPE_COLORS: Record<string, string> = {
   missing_entry: 'bg-amber-100 text-amber-800',
   amount_mismatch: 'bg-red-100 text-red-800',
   fx: 'bg-teal-100 text-teal-800',
+  undocumented_expense: 'bg-orange-100 text-orange-800',
+  stale_item: 'bg-rose-100 text-rose-900',
+  contract_variance: 'bg-indigo-100 text-indigo-800',
+}
+
+const SEVERITY_COLORS: Record<string, string> = {
+  low: 'bg-gray-100 text-gray-600',
+  medium: 'bg-yellow-100 text-yellow-800',
+  high: 'bg-orange-100 text-orange-800',
+  critical: 'bg-red-100 text-red-800',
 }
 
 function ConfidenceBar({ score }: { score: string }) {
@@ -88,10 +102,10 @@ function ExceptionCard({
   return (
     <div className={clsx('card mb-4', isReviewed && 'opacity-60')}>
       {/* Card header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-gray-400 font-mono">
-            Exception {index + 1} of {total}
+            #{exc.exception_number}
           </span>
           <span
             className={clsx(
@@ -101,9 +115,30 @@ function ExceptionCard({
           >
             {TYPE_LABELS[exc.exception_type] ?? exc.exception_type}
           </span>
+          {exc.severity && (
+            <span className={clsx('inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', SEVERITY_COLORS[exc.severity])}>
+              {exc.severity === 'critical' ? '🔴' : exc.severity === 'high' ? '🟠' : ''} {exc.severity}
+            </span>
+          )}
+          {exc.days_outstanding !== null && exc.days_outstanding > 90 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-100 text-rose-800">
+              {exc.days_outstanding}d outstanding
+              {exc.original_fiscal_year && ` · FY ${exc.original_fiscal_year}`}
+            </span>
+          )}
+          {exc.contract_id && (
+            <Link
+              to="/app/contracts"
+              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View contract →
+            </Link>
+          )}
         </div>
         <span
           className={clsx(
+            'shrink-0 ml-2',
             exc.status === 'open'
               ? 'badge-open'
               : exc.status === 'approved'
@@ -331,18 +366,26 @@ export default function ExceptionQueuePage() {
       </div>
 
       {/* Stats strip */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <div className="card py-3 px-4">
           <div className="text-xs text-gray-500 mb-0.5">Open</div>
           <div className="text-xl font-bold text-amber-700">{openCount}</div>
+        </div>
+        <div className="card py-3 px-4">
+          <div className="text-xs text-gray-500 mb-0.5">Critical / High</div>
+          <div className="text-xl font-bold text-red-700">
+            {exceptions.filter((e) => e.severity === 'critical' || e.severity === 'high').length}
+          </div>
         </div>
         <div className="card py-3 px-4">
           <div className="text-xs text-gray-500 mb-0.5">Approved</div>
           <div className="text-xl font-bold text-green-700">{approvedCount}</div>
         </div>
         <div className="card py-3 px-4">
-          <div className="text-xs text-gray-500 mb-0.5">Rejected</div>
-          <div className="text-xl font-bold text-red-700">{rejectedCount}</div>
+          <div className="text-xs text-gray-500 mb-0.5">Stale items</div>
+          <div className="text-xl font-bold text-rose-700">
+            {exceptions.filter((e) => e.exception_type === 'stale_item').length}
+          </div>
         </div>
       </div>
 

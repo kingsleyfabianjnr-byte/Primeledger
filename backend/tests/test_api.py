@@ -15,7 +15,7 @@ TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 async def db_session():
     engine = create_async_engine(TEST_DB_URL, echo=False)
     async with engine.begin() as conn:
-        from app.models import user, reconciliation  # noqa
+        from app.models import user, reconciliation, contract  # noqa
         await conn.run_sync(Base.metadata.create_all)
 
     Session = async_sessionmaker(engine, expire_on_commit=False)
@@ -278,3 +278,174 @@ def test_hash_chain():
     assert len(h1) == 64
     assert len(h2) == 64
     assert h1 != h2
+
+
+# ── Contracts ─────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_and_list_contracts(client, db_session):
+    """Create a contract and verify it appears in the list with balance info."""
+    from app.models.reconciliation import BankAccount
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+
+    user = User(
+        email="contracts@test.com",
+        full_name="Contract User",
+        hashed_password=hash_password("pass1234"),
+        role=UserRole.PREPARER,
+    )
+    db_session.add(user)
+    acct = BankAccount(
+        name="Contracts Account", account_number="9999",
+        masked_number="****9999", entity_name="Corp", currency="USD",
+    )
+    db_session.add(acct)
+    await db_session.commit()
+
+    r = await client.post("/api/auth/token", data={
+        "username": "contracts@test.com", "password": "pass1234",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    r = await client.post("/api/contracts", json={
+        "reference": "CNT-TEST-001",
+        "name": "Test Infrastructure Contract",
+        "counterparty": "BuildCo Ltd",
+        "bank_account_id": acct.id,
+        "deployed_amount": "500000.00",
+        "contract_start": "2024-01-01",
+        "contract_end": "2024-12-31",
+        "scheduled_payment_amount": "50000.00",
+        "payment_frequency": "monthly",
+        "currency": "USD",
+        "description": "Test contract for unit tests",
+    }, headers=headers)
+    assert r.status_code == 201
+    data = r.json()
+    assert data["reference"] == "CNT-TEST-001"
+    assert float(data["deployed_amount"]) == 500000.0
+    assert float(data["remaining_balance"]) == 500000.0
+    assert float(data["used_amount"]) == 0.0
+
+    # List contracts
+    r = await client.get("/api/contracts", headers=headers)
+    assert r.status_code == 200
+    contracts = r.json()
+    assert len(contracts) >= 1
+    assert contracts[0]["reference"] == "CNT-TEST-001"
+
+
+@pytest.mark.asyncio
+async def test_contract_duplicate_reference_rejected(client, db_session):
+    """Creating a contract with a duplicate reference should return 400."""
+    from app.models.reconciliation import BankAccount
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+
+    user = User(
+        email="dupcontract@test.com",
+        full_name="Dup User",
+        hashed_password=hash_password("pass1234"),
+        role=UserRole.PREPARER,
+    )
+    db_session.add(user)
+    acct = BankAccount(
+        name="Dup Account", account_number="8888",
+        masked_number="****8888", entity_name="Corp", currency="USD",
+    )
+    db_session.add(acct)
+    await db_session.commit()
+
+    r = await client.post("/api/auth/token", data={
+        "username": "dupcontract@test.com", "password": "pass1234",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "reference": "CNT-DUP-001",
+        "name": "Contract",
+        "counterparty": "Corp",
+        "bank_account_id": acct.id,
+        "deployed_amount": "100000.00",
+        "contract_start": "2024-01-01",
+    }
+    r1 = await client.post("/api/contracts", json=payload, headers=headers)
+    assert r1.status_code == 201
+
+    r2 = await client.post("/api/contracts", json=payload, headers=headers)
+    assert r2.status_code == 400
+    assert "already exists" in r2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_contract_balance_endpoint(client, db_session):
+    """Contract balance endpoint returns remaining balance and payment counts."""
+    from app.models.reconciliation import BankAccount
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+    from decimal import Decimal
+
+    user = User(
+        email="balance@test.com",
+        full_name="Balance User",
+        hashed_password=hash_password("pass1234"),
+        role=UserRole.PREPARER,
+    )
+    db_session.add(user)
+    acct = BankAccount(
+        name="Bal Account", account_number="7777",
+        masked_number="****7777", entity_name="Corp", currency="USD",
+    )
+    db_session.add(acct)
+    await db_session.commit()
+
+    r = await client.post("/api/auth/token", data={
+        "username": "balance@test.com", "password": "pass1234",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create contract
+    r = await client.post("/api/contracts", json={
+        "reference": "CNT-BAL-001",
+        "name": "Balance Test Contract",
+        "counterparty": "Corp",
+        "bank_account_id": acct.id,
+        "deployed_amount": "250000.00",
+        "contract_start": "2024-01-01",
+    }, headers=headers)
+    contract_id = r.json()["id"]
+
+    # Check balance
+    r = await client.get(f"/api/contracts/{contract_id}/balance", headers=headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert float(data["deployed_amount"]) == 250000.0
+    assert float(data["remaining_balance"]) == 250000.0
+    assert data["is_overrun"] is False
+
+
+@pytest.mark.asyncio
+async def test_new_exception_types_in_ai_pipeline():
+    """AI pipeline handles all 8 exception types without error."""
+    from decimal import Decimal
+    from app.services.ai_pipeline import generate_ai_explanation, suggest_journal_entry
+
+    new_types = ["undocumented_expense", "stale_item", "contract_variance"]
+    for exc_type in new_types:
+        result = generate_ai_explanation(
+            exception_type=exc_type,
+            bank_date="2022-11-15",
+            description="TEST TRANSACTION",
+            amount=Decimal("1000.00"),
+            ledger_amount=Decimal("900.00"),
+        )
+        assert "explanation" in result
+        assert len(result["explanation"]) > 10
+
+        journal = suggest_journal_entry(exc_type, Decimal("1000.00"), "TEST TRANSACTION")
+        assert "suggested_debit" in journal
+        assert "suggested_credit" in journal

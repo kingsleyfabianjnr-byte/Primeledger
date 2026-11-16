@@ -79,6 +79,10 @@ class ExceptionRead(ExceptionBase):
     bank_transaction_id: Optional[int] = None
     exception_number: int
     status: ExceptionStatus
+    severity: Optional[str] = None
+    days_outstanding: Optional[int] = None
+    original_fiscal_year: Optional[int] = None
+    contract_id: Optional[int] = None
     reviewed_by_id: Optional[int] = None
     reviewed_at: Optional[datetime] = None
     reviewer_note: Optional[str] = None

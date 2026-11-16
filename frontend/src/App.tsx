@@ -12,6 +12,7 @@ import AuditTrailPage from './pages/AuditTrailPage'
 import ImportPage from './pages/ImportPage'
 import UsersPage from './pages/UsersPage'
 import ProfilePage from './pages/ProfilePage'
+import ContractsPage from './pages/ContractsPage'
 import AppLayout from './components/AppLayout'
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="import" element={<ImportPage />} />
             <Route path="audit" element={<AuditTrailPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="contracts" element={<ContractsPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
