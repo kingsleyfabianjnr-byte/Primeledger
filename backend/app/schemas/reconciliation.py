@@ -83,6 +83,11 @@ class ExceptionRead(ExceptionBase):
     reviewed_at: Optional[datetime] = None
     reviewer_note: Optional[str] = None
     created_at: datetime
+    # Denormalized bank transaction fields for the UI
+    bank_date: Optional[date] = None
+    bank_amount: Optional[Decimal] = None
+    bank_description: Optional[str] = None
+    ledger_amount: Optional[Decimal] = None
 
     model_config = {"from_attributes": True}
 

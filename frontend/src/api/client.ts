@@ -99,6 +99,10 @@ export interface Exception {
   suggested_debit: string | null
   suggested_credit: string | null
   suggested_amount: string | null
+  bank_date: string | null
+  bank_amount: string | null
+  bank_description: string | null
+  ledger_amount: string | null
   status: ExceptionStatus
   reviewed_by_id: number | null
   reviewed_at: string | null
@@ -184,4 +188,11 @@ export const auditApi = {
   list: (params?: { reconciliation_id?: number; limit?: number; offset?: number }) =>
     api.get<AuditLog[]>('/audit', { params }),
   get: (id: number) => api.get<AuditLog>(`/audit/${id}`),
+}
+
+export const exportApi = {
+  auditCsv: () => api.get('/export/audit/csv', { responseType: 'blob' }),
+  auditExcel: () => api.get('/export/audit/excel', { responseType: 'blob' }),
+  reconciliationCsv: (reconId: number) =>
+    api.get(`/export/reconciliation/csv`, { params: { reconciliation_id: reconId }, responseType: 'blob' }),
 }

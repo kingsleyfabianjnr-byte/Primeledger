@@ -25,20 +25,30 @@ function ConfidenceBar({ score }: { score: string }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-        <div className={clsx('h-full rounded-full', color)} style={{ width: `${val * 100}%` }} />
+        <div className={clsx('h-full rounded-full transition-all', color)} style={{ width: `${val * 100}%` }} />
       </div>
-      <span className="text-xs text-gray-600 font-mono">{val.toFixed(2)}</span>
+      <span className="text-xs text-gray-600 font-mono tabular-nums">{val.toFixed(2)}</span>
     </div>
   )
 }
 
 type ReviewAction = 'approve' | 'reject' | 'edit' | null
 
+function formatAmount(val: string | null) {
+  if (!val) return null
+  const n = parseFloat(val)
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
 function ExceptionCard({
   exc,
+  index,
+  total,
   onReviewed,
 }: {
   exc: Exception
+  index: number
+  total: number
   onReviewed: (updated: Exception) => void
 }) {
   const { user } = useAuth()
@@ -62,11 +72,7 @@ function ExceptionCard({
         action,
         reviewer_note: note,
         ...(action === 'edit'
-          ? {
-              suggested_debit: editDebit,
-              suggested_credit: editCredit,
-              suggested_amount: editAmount,
-            }
+          ? { suggested_debit: editDebit, suggested_credit: editCredit, suggested_amount: editAmount }
           : {}),
       })
       onReviewed(res.data)
@@ -80,27 +86,63 @@ function ExceptionCard({
   }
 
   return (
-    <div className={clsx('card mb-4', isReviewed && 'opacity-70')}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
+    <div className={clsx('card mb-4', isReviewed && 'opacity-60')}>
+      {/* Card header */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-400">#{exc.exception_number}</span>
-          <span className={clsx('inline-flex items-center px-2 py-0.5 rounded text-xs font-medium', TYPE_COLORS[exc.exception_type])}>
+          <span className="text-xs text-gray-400 font-mono">
+            Exception {index + 1} of {total}
+          </span>
+          <span
+            className={clsx(
+              'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+              TYPE_COLORS[exc.exception_type] ?? 'bg-gray-100 text-gray-700'
+            )}
+          >
             {TYPE_LABELS[exc.exception_type] ?? exc.exception_type}
           </span>
         </div>
         <span
           className={clsx(
-            exc.status === 'open' ? 'badge-open' :
-            exc.status === 'approved' ? 'badge-approved' :
-            exc.status === 'rejected' ? 'badge-rejected' : 'badge-pending'
+            exc.status === 'open'
+              ? 'badge-open'
+              : exc.status === 'approved'
+              ? 'badge-approved'
+              : exc.status === 'rejected'
+              ? 'badge-rejected'
+              : 'badge-pending'
           )}
         >
           {exc.status.replace('_', ' ')}
         </span>
       </div>
 
-      <p className="text-sm font-medium text-gray-900 mb-2">{exc.description}</p>
+      {/* Bank vs Ledger split */}
+      <div className="grid grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+        <div>
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">Bank statement</div>
+          {exc.bank_date && (
+            <div className="text-sm font-medium text-gray-900">
+              {new Date(exc.bank_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              {exc.bank_amount && ` · ${formatAmount(exc.bank_amount)}`}
+            </div>
+          )}
+          {exc.bank_description && (
+            <div className="text-xs text-gray-500 mt-0.5">{exc.bank_description}</div>
+          )}
+          {!exc.bank_date && !exc.bank_amount && (
+            <div className="text-sm text-gray-500">—</div>
+          )}
+        </div>
+        <div>
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">General ledger</div>
+          {exc.ledger_amount ? (
+            <div className="text-sm font-medium text-gray-900">{formatAmount(exc.ledger_amount)}</div>
+          ) : (
+            <div className="text-sm font-medium text-red-500">No matching entry</div>
+          )}
+        </div>
+      </div>
 
       {/* AI explanation */}
       <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3">
@@ -119,7 +161,8 @@ function ExceptionCard({
 
       {/* Suggested journal entry */}
       {(exc.suggested_debit || exc.suggested_credit) && (
-        <div className="bg-gray-50 rounded-lg p-3 mb-3">
+        <div className="bg-gray-50 rounded-lg p-3 mb-3 border border-gray-100">
+          <div className="text-xs text-gray-400 mb-1.5">Suggested journal entry</div>
           {action === 'edit' ? (
             <div className="space-y-2">
               <div>
@@ -158,7 +201,7 @@ function ExceptionCard({
         </div>
       )}
 
-      {/* Note */}
+      {/* Review note */}
       {(action === 'approve' || action === 'reject') && (
         <div className="mb-3">
           <label className="label text-xs">Review note (optional)</label>
@@ -176,15 +219,21 @@ function ExceptionCard({
 
       {/* Actions */}
       {!isReviewed && (
-        <div className="flex items-center gap-2 pt-1">
+        <div className="flex items-center gap-2 pt-1 border-t border-gray-100 mt-3">
           {action === null ? (
             <>
               {canApproveReject && (
-                <button onClick={() => setAction('approve')} className="btn-primary text-xs px-4 py-1.5">
+                <button
+                  onClick={() => setAction('approve')}
+                  className="btn-primary text-xs px-4 py-1.5"
+                >
                   Approve
                 </button>
               )}
-              <button onClick={() => setAction('edit')} className="btn-secondary text-xs px-4 py-1.5">
+              <button
+                onClick={() => setAction('edit')}
+                className="btn-secondary text-xs px-4 py-1.5"
+              >
                 Edit
               </button>
               {canApproveReject && (
@@ -206,7 +255,9 @@ function ExceptionCard({
                 disabled={submitting}
                 className={clsx(
                   'text-xs px-4 py-1.5',
-                  action === 'reject' ? 'btn-ghost text-red-600 hover:bg-red-50' : 'btn-primary'
+                  action === 'reject'
+                    ? 'btn-ghost text-red-600 hover:bg-red-50'
+                    : 'btn-primary'
                 )}
               >
                 {submitting ? 'Saving…' : `Confirm ${action}`}
@@ -220,7 +271,9 @@ function ExceptionCard({
       )}
 
       {isReviewed && exc.reviewer_note && (
-        <div className="mt-2 text-xs text-gray-500 italic">Note: {exc.reviewer_note}</div>
+        <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 italic">
+          Note: {exc.reviewer_note}
+        </div>
       )}
     </div>
   )
@@ -241,15 +294,13 @@ export default function ExceptionQueuePage() {
   }, [])
 
   const handleReviewed = (updated: Exception) => {
-    setExceptions((prev) =>
-      prev.map((e) => (e.id === updated.id ? updated : e))
-    )
+    setExceptions((prev) => prev.map((e) => (e.id === updated.id ? updated : e)))
   }
 
-  const filtered =
-    filter === 'all' ? exceptions : exceptions.filter((e) => e.status === filter)
-
+  const filtered = filter === 'all' ? exceptions : exceptions.filter((e) => e.status === filter)
   const openCount = exceptions.filter((e) => e.status === 'open').length
+  const approvedCount = exceptions.filter((e) => e.status === 'approved').length
+  const rejectedCount = exceptions.filter((e) => e.status === 'rejected').length
 
   if (loading) {
     return (
@@ -266,19 +317,33 @@ export default function ExceptionQueuePage() {
         <div className="text-xs font-semibold tracking-widest text-blue-600 uppercase mb-1">
           October 2024 · Operating Account ****4567
         </div>
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Exception Queue
-            {openCount > 0 && (
-              <span className="ml-2 text-sm font-normal text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
-                {openCount} open
-              </span>
-            )}
-          </h1>
-        </div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Exception Queue
+          {openCount > 0 && (
+            <span className="ml-2 text-sm font-normal text-amber-700 bg-amber-100 rounded-full px-2 py-0.5">
+              {openCount} open
+            </span>
+          )}
+        </h1>
         <p className="text-sm text-gray-500 mt-1">
           Review AI-identified items. Only approvers can post entries.
         </p>
+      </div>
+
+      {/* Stats strip */}
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <div className="card py-3 px-4">
+          <div className="text-xs text-gray-500 mb-0.5">Open</div>
+          <div className="text-xl font-bold text-amber-700">{openCount}</div>
+        </div>
+        <div className="card py-3 px-4">
+          <div className="text-xs text-gray-500 mb-0.5">Approved</div>
+          <div className="text-xl font-bold text-green-700">{approvedCount}</div>
+        </div>
+        <div className="card py-3 px-4">
+          <div className="text-xs text-gray-500 mb-0.5">Rejected</div>
+          <div className="text-xl font-bold text-red-700">{rejectedCount}</div>
+        </div>
       </div>
 
       {/* Filter tabs */}
@@ -294,7 +359,9 @@ export default function ExceptionQueuePage() {
                 : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
             )}
           >
-            {f === 'all' ? `All (${exceptions.length})` : f.charAt(0).toUpperCase() + f.slice(1)}
+            {f === 'all'
+              ? `All (${exceptions.length})`
+              : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
       </div>
@@ -306,8 +373,14 @@ export default function ExceptionQueuePage() {
           No exceptions match this filter.
         </div>
       ) : (
-        filtered.map((exc) => (
-          <ExceptionCard key={exc.id} exc={exc} onReviewed={handleReviewed} />
+        filtered.map((exc, i) => (
+          <ExceptionCard
+            key={exc.id}
+            exc={exc}
+            index={i}
+            total={filtered.length}
+            onReviewed={handleReviewed}
+          />
         ))
       )}
     </div>
