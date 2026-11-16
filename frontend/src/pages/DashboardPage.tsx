@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { dashboardApi, DashboardStats, Reconciliation } from '../api/client'
+import { dashboardApi, reconciliationsApi, DashboardStats, Reconciliation } from '../api/client'
 import clsx from 'clsx'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -19,7 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: 'badge-rejected',
 }
 
-function formatPeriod(start: string, end: string) {
+function formatPeriod(start: string) {
   const s = new Date(start + 'T00:00:00')
   return s.toLocaleString('en-US', { month: 'long', year: 'numeric' })
 }
@@ -54,18 +54,128 @@ function StatCard({
   )
 }
 
+// ── New Reconciliation Modal ──────────────────────────────────────────────────
+
+function NewReconModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const [accountId, setAccountId] = useState('1')
+  const [periodStart, setPeriodStart] = useState('')
+  const [periodEnd, setPeriodEnd] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState('')
+
+  // Default to current month
+  useEffect(() => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+    setPeriodStart(`${y}-${m}-01`)
+    setPeriodEnd(`${y}-${m}-${lastDay}`)
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErr('')
+    setLoading(true)
+    try {
+      await reconciliationsApi.create({
+        bank_account_id: parseInt(accountId),
+        period_start: periodStart,
+        period_end: periodEnd,
+      })
+      onCreated()
+      onClose()
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setErr(msg ?? 'Failed to create reconciliation.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Start new reconciliation</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Creates a new reconciliation run for the selected account and period.
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="label">Bank account</label>
+            <select
+              className="input"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+            >
+              <option value="1">Operating Account ****4567</option>
+              <option value="2">Payroll Account ****4890</option>
+              <option value="3">Reserve Account ****1122</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Period start</label>
+              <input
+                type="date"
+                className="input"
+                value={periodStart}
+                onChange={(e) => setPeriodStart(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Period end</label>
+              <input
+                type="date"
+                className="input"
+                value={periodEnd}
+                onChange={(e) => setPeriodEnd(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          {err && <div className="text-xs text-red-600">{err}</div>}
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={loading} className="btn-primary flex-1">
+              {loading ? 'Starting…' : 'Start reconciliation'}
+            </button>
+            <button type="button" onClick={onClose} className="btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Dashboard Page ────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showNewRecon, setShowNewRecon] = useState(false)
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true)
     dashboardApi
       .get()
       .then((res) => setStats(res.data))
       .catch(() => setError('Failed to load dashboard'))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
 
   if (loading) {
     return (
@@ -76,20 +186,40 @@ export default function DashboardPage() {
   }
 
   if (error || !stats) {
-    return (
-      <div className="p-8 text-red-600 text-sm">{error || 'No data.'}</div>
-    )
+    return <div className="p-8 text-red-600 text-sm">{error || 'No data.'}</div>
   }
+
+  // Derive a human-readable period from the most recent in-progress reconciliation
+  const activeRecon = stats.reconciliations.find((r) => r.status === 'in_progress')
+  const periodLabel = activeRecon
+    ? formatPeriod(activeRecon.period_start)
+    : 'No active reconciliation'
+  const accountLabel = activeRecon?.bank_account?.masked_number
+    ? `${activeRecon.bank_account.name} ${activeRecon.bank_account.masked_number}`
+    : ''
 
   return (
     <div className="p-8 max-w-6xl">
       {/* Header */}
-      <div className="mb-8">
-        <div className="text-xs font-semibold tracking-widest text-blue-600 uppercase mb-1">
-          Reconciliation Workspace
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-semibold tracking-widest text-blue-600 uppercase mb-1">
+            Reconciliation Workspace
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          {activeRecon && (
+            <p className="text-sm text-gray-500 mt-1">
+              {periodLabel}
+              {accountLabel && ` · ${accountLabel}`}
+            </p>
+          )}
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">October 2024 close · Operating Account ****4567</p>
+        <button
+          onClick={() => setShowNewRecon(true)}
+          className="btn-primary text-sm shrink-0 mt-1"
+        >
+          + New reconciliation
+        </button>
       </div>
 
       {/* Stats */}
@@ -145,7 +275,7 @@ export default function DashboardPage() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-gray-600">
-                      {formatPeriod(r.period_start, r.period_end)}
+                      {formatPeriod(r.period_start)}
                     </td>
                     <td className="px-5 py-3.5">
                       <span className={clsx(STATUS_COLORS[r.status] ?? 'badge-pending')}>
@@ -155,7 +285,12 @@ export default function DashboardPage() {
                     <td className="px-5 py-3.5 text-right text-gray-600">{r.total_transactions}</td>
                     <td className="px-5 py-3.5 text-right">
                       {r.exception_count > 0 ? (
-                        <span className="text-amber-700 font-medium">{r.exception_count}</span>
+                        <Link
+                          to="/app/exceptions"
+                          className="text-amber-700 font-medium hover:underline"
+                        >
+                          {r.exception_count}
+                        </Link>
                       ) : (
                         <span className="text-gray-400">0</span>
                       )}
@@ -168,10 +303,17 @@ export default function DashboardPage() {
                     </td>
                     <td className="px-5 py-3.5 text-right font-mono text-xs">
                       {diff !== null ? (
-                        <span className={clsx(Math.abs(diff) > 0.01 ? 'text-red-600' : 'text-green-600')}>
-                          {diff >= 0 ? '+' : ''}{diff.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        <span
+                          className={clsx(
+                            Math.abs(diff) > 0.01 ? 'text-red-600' : 'text-green-600'
+                          )}
+                        >
+                          {diff >= 0 ? '+' : ''}
+                          {diff.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </span>
-                      ) : '—'}
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 )
@@ -189,7 +331,18 @@ export default function DashboardPage() {
         <Link to="/app/audit" className="btn-secondary text-sm">
           View audit trail
         </Link>
+        <Link to="/app/import" className="btn-secondary text-sm">
+          Import CSV
+        </Link>
       </div>
+
+      {/* New reconciliation modal */}
+      {showNewRecon && (
+        <NewReconModal
+          onClose={() => setShowNewRecon(false)}
+          onCreated={load}
+        />
+      )}
     </div>
   )
 }

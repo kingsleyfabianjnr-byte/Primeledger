@@ -34,6 +34,10 @@ vi.mock('../api/client', () => ({
       ],
     }),
   },
+  exportApi: {
+    auditCsv: vi.fn().mockResolvedValue({ data: new Blob() }),
+    auditExcel: vi.fn().mockResolvedValue({ data: new Blob() }),
+  },
   default: { interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } },
 }))
 
