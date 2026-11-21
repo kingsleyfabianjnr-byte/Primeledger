@@ -11,9 +11,16 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Only redirect AFTER the auth context has finished checking the stored token.
-  // Without the authLoading guard the page redirects on every visit even with
-  // empty fields because the context restores the previous session on mount.
+  // On mount, wipe any stored token so the login page ALWAYS shows as a fresh form.
+  // This is the definitive guard: no matter how the user arrives at /login, they
+  // will never be silently redirected away without entering credentials.
+  useEffect(() => {
+    localStorage.removeItem('pl_token')
+  }, [])
+
+  // After the token wipe above, authLoading will resolve to no-user, so this
+  // redirect effect will never fire for a fresh visit — only for explicit
+  // programmatic redirects after a successful login() call.
   useEffect(() => {
     if (!authLoading && user) {
       navigate('/app/dashboard', { replace: true })

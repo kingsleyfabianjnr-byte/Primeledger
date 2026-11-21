@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 // ── Request Access Form ───────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ function RequestAccessForm() {
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Request received</h3>
         <p className="text-sm text-gray-500 mb-6">
           We'll send a setup link to <strong>{email}</strong>. While you wait,{' '}
-          <Link to="/login" className="text-blue-600 hover:underline">try the demo</Link>.
+          <a href="/login" onClick={() => localStorage.removeItem('pl_token')} className="text-blue-600 hover:underline">try the demo</a>.
         </p>
         <button
           onClick={() => { setName(''); setEmail(''); setCompany(''); setSubmitted(false) }}
@@ -84,7 +84,7 @@ function RequestAccessForm() {
       </button>
       <p className="text-center text-xs text-gray-400 pt-1">
         Already have an account?{' '}
-        <Link to="/login" className="text-blue-600 hover:underline">Sign in</Link>
+        <a href="/login" onClick={() => localStorage.removeItem('pl_token')} className="text-blue-600 hover:underline">Sign in</a>
       </p>
     </form>
   )
@@ -93,6 +93,15 @@ function RequestAccessForm() {
 // ── Landing Page ──────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  const navigate = useNavigate()
+
+  // Always clear any saved session before going to login so the form is visible
+  const goToLogin = (e: React.MouseEvent) => {
+    e.preventDefault()
+    localStorage.removeItem('pl_token')
+    navigate('/login')
+  }
+
   return (
     <div className="bg-white min-h-screen font-sans">
       {/* NAV */}
@@ -113,9 +122,9 @@ export default function LandingPage() {
             <a href="#who-its-for" className="hover:text-gray-900 transition-colors">Who it's for</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link to="/login" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign in</Link>
+            <a href="/login" onClick={goToLogin} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign in</a>
             <a href="#request-access" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">Sign up</a>
-            <Link to="/login" className="btn-primary text-xs px-4 py-2">Try the demo</Link>
+            <a href="/login" onClick={goToLogin} className="btn-primary text-xs px-4 py-2">Try the demo</a>
           </div>
         </div>
       </header>
@@ -135,7 +144,7 @@ export default function LandingPage() {
             Your accountants review and approve. Nothing posts without them.
           </p>
           <div className="flex items-center gap-3">
-            <Link to="/login" className="btn-primary">Try the demo</Link>
+            <a href="/login" onClick={goToLogin} className="btn-primary">Try the demo</a>
             <a href="#how-it-works" className="btn-secondary">See how it works</a>
           </div>
         </div>
@@ -367,9 +376,9 @@ export default function LandingPage() {
             <p className="text-gray-500 text-sm leading-relaxed">
               PrimeLedger is invite-only. Enter your details and your admin will receive a setup link
               — or{' '}
-              <Link to="/login" className="text-blue-600 hover:underline">
+              <a href="/login" onClick={goToLogin} className="text-blue-600 hover:underline">
                 try the demo now
-              </Link>{' '}
+              </a>{' '}
               with no account required.
             </p>
           </div>
@@ -384,7 +393,7 @@ export default function LandingPage() {
             <h2 className="text-2xl font-bold text-white mb-2">See a month reconcile itself.</h2>
             <p className="text-gray-400 text-sm">Run the demo on a sample month and approve the fixes yourself.</p>
           </div>
-          <Link to="/login" className="btn-secondary shrink-0">Try the demo</Link>
+          <a href="/login" onClick={goToLogin} className="btn-secondary shrink-0">Try the demo</a>
         </div>
       </section>
 
