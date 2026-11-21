@@ -269,6 +269,22 @@ export const contractsApi = {
   }) => api.post<ContractPayment>(`/contracts/${id}/payments/match`, data),
 }
 
+export const watsonxApi = {
+  explain: (data: {
+    exception_type: string
+    bank_date: string
+    description: string
+    amount: number
+    ledger_amount?: number
+  }) => api.post<{
+    explanation: string
+    confidence: number
+    journal: { suggested_debit: string; suggested_credit: string; suggested_amount: string }
+    model: string
+  }>('/watsonx/explain', data),
+  test: () => api.get<{ status: string; message: string; model: string | null; response: string | null }>('/watsonx/test'),
+}
+
 export const exportApi = {
   auditCsv: () => api.get('/export/audit/csv', { responseType: 'blob' }),
   auditExcel: () => api.get('/export/audit/excel', { responseType: 'blob' }),

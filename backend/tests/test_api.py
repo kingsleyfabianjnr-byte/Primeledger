@@ -552,3 +552,40 @@ async def test_csv_import_invalid_file_type(client, db_session):
     )
     assert r.status_code == 400
     assert "CSV" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_watsonx_explain_endpoint(client, db_session):
+    """POST /api/watsonx/explain returns explanation, confidence, and journal entry."""
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+
+    user = User(
+        email="watsonx@test.com",
+        full_name="Watsonx User",
+        hashed_password=hash_password("pass1234"),
+        role=UserRole.PREPARER,
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    r = await client.post("/api/auth/token", data={
+        "username": "watsonx@test.com", "password": "pass1234",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    r = await client.post("/api/watsonx/explain", json={
+        "exception_type": "missing_entry",
+        "bank_date": "2024-10-18",
+        "description": "GOOGLE WORKSPACE",
+        "amount": 840.00,
+    }, headers=headers)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert "explanation" in data
+    assert len(data["explanation"]) > 10
+    assert "confidence" in data
+    assert "journal" in data
+    assert "suggested_debit" in data["journal"]
+    assert "suggested_credit" in data["journal"]

@@ -1,10 +1,54 @@
-"""watsonx connection test endpoint."""
+"""watsonx connection test + on-demand AI explanation endpoints."""
+from decimal import Decimal
+from typing import Optional
+
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from app.core.security import get_current_user
 from app.models.user import User
 
 router = APIRouter(prefix="/api/watsonx", tags=["watsonx"])
+
+
+class ExplainRequest(BaseModel):
+    exception_type: str
+    bank_date: str
+    description: str
+    amount: float
+    ledger_amount: Optional[float] = None
+
+
+@router.post("/explain")
+async def explain_exception(
+    req: ExplainRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generate (or re-generate) an AI explanation for an exception.
+    Returns explanation text, confidence score, and suggested journal entry.
+    """
+    from app.services.ai_pipeline import generate_ai_explanation, suggest_journal_entry
+
+    result = generate_ai_explanation(
+        exception_type=req.exception_type,
+        bank_date=req.bank_date,
+        description=req.description,
+        amount=Decimal(str(req.amount)),
+        ledger_amount=Decimal(str(req.ledger_amount)) if req.ledger_amount else None,
+    )
+    journal = suggest_journal_entry(
+        req.exception_type,
+        Decimal(str(req.amount)),
+        req.description,
+    )
+    return {
+        "explanation": result["explanation"],
+        "confidence": result["confidence"],
+        "journal": journal,
+        "model": result.get("model", "mock"),
+    }
+
 
 
 @router.get("/test")

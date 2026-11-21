@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { exceptionsApi, Exception, ExceptionStatus } from '../api/client'
+import { exceptionsApi, watsonxApi, Exception, ExceptionStatus } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import clsx from 'clsx'
 
@@ -73,6 +73,26 @@ function ExceptionCard({
   const [editAmount, setEditAmount] = useState(exc.suggested_amount ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [err, setErr] = useState('')
+  const [aiText, setAiText] = useState(exc.ai_explanation)
+  const [regenerating, setRegenerating] = useState(false)
+
+  const handleRegenerate = async () => {
+    setRegenerating(true)
+    try {
+      const res = await watsonxApi.explain({
+        exception_type: exc.exception_type,
+        bank_date: exc.bank_date ?? new Date().toISOString().slice(0, 10),
+        description: exc.bank_description ?? exc.description,
+        amount: exc.bank_amount ? Math.abs(parseFloat(exc.bank_amount)) : 0,
+        ledger_amount: exc.ledger_amount ? parseFloat(exc.ledger_amount) : undefined,
+      })
+      setAiText(res.data.explanation)
+    } catch {
+      // silently ignore regeneration failures
+    } finally {
+      setRegenerating(false)
+    }
+  }
 
   const canApproveReject = user?.role === 'approver' || user?.role === 'admin'
   const isReviewed = exc.status !== 'open'
@@ -185,7 +205,14 @@ function ExceptionCard({
           <span className="text-xs font-semibold text-blue-600 bg-blue-100 rounded px-1.5 py-0.5">AI</span>
           <span className="text-xs text-blue-700 font-medium">Explanation</span>
         </div>
-        <p className="text-xs text-blue-900 leading-relaxed">{exc.ai_explanation}</p>
+        <p className="text-xs text-blue-900 leading-relaxed">{aiText}</p>
+        <button
+          onClick={handleRegenerate}
+          disabled={regenerating}
+          className="mt-2 text-xs text-blue-600 hover:underline disabled:opacity-50"
+        >
+          {regenerating ? 'Regenerating…' : '↻ Regenerate explanation'}
+        </button>
       </div>
 
       {/* Confidence */}
