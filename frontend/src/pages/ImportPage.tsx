@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../api/client'
+import axios from 'axios'
 import clsx from 'clsx'
 
 interface ImportResult {
@@ -41,12 +41,21 @@ export default function ImportPage() {
     form.append('period_end', periodEnd)
 
     try {
-      const res = await api.post('/import/bank-statement', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      // Let browser set Content-Type automatically (needs to include multipart boundary)
+      const importApi = axios.create({
+        baseURL: import.meta.env.VITE_API_URL
+          ? `${import.meta.env.VITE_API_URL}/api`
+          : '/api',
+      })
+      const token = localStorage.getItem('pl_token')
+      const res = await importApi.post('/import/bank-statement', form, {
+        headers: { Authorization: `Bearer ${token}` },
       })
       setResult(res.data)
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      const err = e as { response?: { data?: { detail?: string } | string }; message?: string }
+      const detail = err?.response?.data
+      const msg = typeof detail === 'object' ? detail?.detail : typeof detail === 'string' ? detail : err?.message
       setError(msg ?? 'Import failed — check your CSV format')
     } finally {
       setLoading(false)
