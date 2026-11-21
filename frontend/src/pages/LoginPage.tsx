@@ -1,9 +1,9 @@
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function LoginPage() {
-  const { login, user } = useAuth()
+  const { login, user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   // Start EMPTY — user types their own credentials
   const [email, setEmail] = useState('')
@@ -11,9 +11,28 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  if (user) {
-    navigate('/app/dashboard', { replace: true })
+  // Only redirect AFTER the auth context has finished checking the stored token.
+  // Without the authLoading guard the page redirects on every visit even with
+  // empty fields because the context restores the previous session on mount.
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate('/app/dashboard', { replace: true })
+    }
+  }, [user, authLoading, navigate])
+
+  // While the auth context is still checking localStorage don't render the form
+  // — avoids a flash of the login UI before the redirect kicks in.
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-400 text-sm">Loading…</div>
+      </div>
+    )
   }
+
+  // If a user is already logged in, render nothing — the useEffect above will
+  // navigate away on the next tick.
+  if (user) return null
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

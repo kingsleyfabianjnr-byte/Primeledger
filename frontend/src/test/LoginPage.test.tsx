@@ -32,7 +32,8 @@ describe('LoginPage', () => {
     }
   })
 
-  it('renders login form with empty fields and demo role buttons', () => {
+  it('renders login form with empty fields and demo role buttons', async () => {
+    // me() rejects — no existing session, so auth loading resolves to null user
     ;(authApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('no token'))
     render(
       <MemoryRouter>
@@ -41,20 +42,20 @@ describe('LoginPage', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-    // heading
-    expect(screen.getByRole('heading', { name: /Sign in/i })).toBeInTheDocument()
-    // fields start empty
+    // Wait for authLoading to finish and form to appear
+    expect(await screen.findByRole('heading', { name: /Sign in/i })).toBeInTheDocument()
+    // Fields start empty
     const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement
     const passwordInput = screen.getByLabelText(/Password/i) as HTMLInputElement
     expect(emailInput.value).toBe('')
     expect(passwordInput.value).toBe('')
-    // demo role buttons present
+    // Demo role buttons present
     expect(screen.getByRole('button', { name: /preparer/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /approver/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /admin/i })).toBeInTheDocument()
   })
 
-  it('fills credentials when a demo role button is clicked', () => {
+  it('fills credentials when a demo role button is clicked', async () => {
     ;(authApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('no token'))
     render(
       <MemoryRouter>
@@ -63,9 +64,26 @@ describe('LoginPage', () => {
         </AuthProvider>
       </MemoryRouter>
     )
+    // Wait for form to appear after auth check
+    await screen.findByRole('heading', { name: /Sign in/i })
     fireEvent.click(screen.getByRole('button', { name: /preparer/i }))
     const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement
     expect(emailInput.value).toBe('demo@primeledger.ai')
+  })
+
+  it('does NOT redirect to dashboard on mount when no token is stored', async () => {
+    ;(authApi.me as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('no token'))
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+    // Wait for auth check to finish
+    await screen.findByRole('heading', { name: /Sign in/i })
+    // navigate should NOT have been called — no session, no auto-redirect
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 
   it('shows error on wrong credentials', async () => {
@@ -81,6 +99,9 @@ describe('LoginPage', () => {
         </AuthProvider>
       </MemoryRouter>
     )
+
+    // Wait for form
+    await screen.findByRole('heading', { name: /Sign in/i })
 
     fireEvent.change(screen.getByLabelText(/Email/i), {
       target: { value: 'wrong@test.com' },
