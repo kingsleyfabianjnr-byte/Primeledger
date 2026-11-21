@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { auditApi, exportApi, AuditLog, AuditAction } from '../api/client'
 import clsx from 'clsx'
 
@@ -163,9 +163,8 @@ export default function AuditTrailPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {logs.map((log) => (
-                <>
+                <React.Fragment key={log.id}>
                   <tr
-                    key={log.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
                     onClick={() => setExpanded(expanded === log.id ? null : log.id)}
                   >
@@ -234,7 +233,7 @@ export default function AuditTrailPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </tbody>
           </table>

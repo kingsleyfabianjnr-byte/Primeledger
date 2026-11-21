@@ -449,3 +449,106 @@ async def test_new_exception_types_in_ai_pipeline():
         journal = suggest_journal_entry(exc_type, Decimal("1000.00"), "TEST TRANSACTION")
         assert "suggested_debit" in journal
         assert "suggested_credit" in journal
+
+
+# ── CSV Import ────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_csv_import_bank_statement(client, db_session):
+    """Upload a CSV bank statement and verify transactions + exceptions are created."""
+    from app.models.reconciliation import BankAccount
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+    import io
+
+    user = User(
+        email="csvimport@test.com",
+        full_name="CSV User",
+        hashed_password=hash_password("pass1234"),
+        role=UserRole.PREPARER,
+    )
+    db_session.add(user)
+    acct = BankAccount(
+        name="CSV Account", account_number="6666",
+        masked_number="****6666", entity_name="Corp", currency="USD",
+    )
+    db_session.add(acct)
+    await db_session.commit()
+
+    r = await client.post("/api/auth/token", data={
+        "username": "csvimport@test.com", "password": "pass1234",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Build CSV with 5 rows: 2 no-reference (→ undocumented_expense) + 3 normal
+    csv_content = (
+        "date,description,amount,reference\n"
+        "2024-11-01,ACH PAYROLL,-42350.00,PR-11-01\n"
+        "2024-11-03,CONSULTANT FEE,-5000.00,\n"
+        "2024-11-05,STRIPE PAYOUT,18420.00,STR-3001\n"
+        "2024-11-10,WIRE IN - CLIENT A,75000.00,WR-CA-02\n"
+        "2024-11-28,BANK SERVICE CHARGE,-35.00,\n"
+    )
+    csv_bytes = csv_content.encode("utf-8")
+
+    r = await client.post(
+        "/api/import/bank-statement",
+        data={
+            "bank_account_id": str(acct.id),
+            "period_start": "2024-11-01",
+            "period_end": "2024-11-30",
+        },
+        files={"file": ("test_statement.csv", io.BytesIO(csv_bytes), "text/csv")},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["rows_imported"] == 5
+    assert data["rows_skipped"] == 0
+    # At least the 2 no-reference rows should be flagged
+    assert data["exceptions"] >= 2
+    assert data["matched"] + data["exceptions"] == 5
+    assert data["reconciliation_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_csv_import_invalid_file_type(client, db_session):
+    """Non-CSV upload is rejected with 400."""
+    from app.models.reconciliation import BankAccount
+    from app.models.user import User, UserRole
+    from app.core.security import hash_password
+    import io
+
+    user = User(
+        email="csvbadtype@test.com",
+        full_name="Bad Type User",
+        hashed_password=hash_password("pass1234"),
+        role=UserRole.PREPARER,
+    )
+    db_session.add(user)
+    acct = BankAccount(
+        name="Bad Account", account_number="5555",
+        masked_number="****5555", entity_name="Corp", currency="USD",
+    )
+    db_session.add(acct)
+    await db_session.commit()
+
+    r = await client.post("/api/auth/token", data={
+        "username": "csvbadtype@test.com", "password": "pass1234",
+    })
+    token = r.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    r = await client.post(
+        "/api/import/bank-statement",
+        data={
+            "bank_account_id": str(acct.id),
+            "period_start": "2024-11-01",
+            "period_end": "2024-11-30",
+        },
+        files={"file": ("report.pdf", io.BytesIO(b"fake pdf content"), "application/pdf")},
+        headers=headers,
+    )
+    assert r.status_code == 400
+    assert "CSV" in r.json()["detail"]

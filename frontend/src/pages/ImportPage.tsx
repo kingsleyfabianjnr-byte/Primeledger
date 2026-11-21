@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import api from '../api/client'
 import clsx from 'clsx'
 
 interface ImportResult {
@@ -41,12 +41,8 @@ export default function ImportPage() {
     form.append('period_end', periodEnd)
 
     try {
-      const token = localStorage.getItem('pl_token')
-      const res = await axios.post('/api/import/bank-statement', form, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`,
-        },
+      const res = await api.post('/import/bank-statement', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
       setResult(res.data)
     } catch (e: unknown) {

@@ -181,14 +181,21 @@ async def import_bank_statement(
     # In production this would be the full ML matching pipeline.
     # Here: exact match by amount + month → matched; otherwise → exception.
 
-    exception_types = ["timing", "missing_entry", "amount_mismatch", "duplicate", "fx"]
+    exception_types = [
+        "undocumented_expense", "missing_entry", "amount_mismatch",
+        "duplicate", "timing", "fx",
+    ]
     exc_count = 0
     match_count = 0
     txn_objects = []
 
+    from app.models.reconciliation import ExceptionSeverity
+
     for i, t in enumerate(parsed_txns):
-        # Heuristic: flag ~30% as exceptions for demo realism when no ledger uploaded
-        is_exception = (abs(t["amount"]) % Decimal("100") < Decimal("20")) and i % 4 == 0
+        # Flag transactions that have no reference number as undocumented expenses
+        no_ref = not t["reference"]
+        # Also flag a heuristic ~25% sample for other exception types
+        is_exception = no_ref or ((abs(t["amount"]) % Decimal("100") < Decimal("20")) and i % 4 == 0)
 
         txn = BankTransaction(
             reconciliation_id=recon.id,
@@ -199,9 +206,10 @@ async def import_bank_statement(
             match_status=MatchStatus.EXCEPTION if is_exception else MatchStatus.MATCHED,
             confidence_score=Decimal("0.60") if is_exception else Decimal("0.97"),
             match_method=None if is_exception else "exact",
+            evidence_required=no_ref and t["amount"] < 0,
         )
         db.add(txn)
-        txn_objects.append((txn, is_exception))
+        txn_objects.append((txn, is_exception, no_ref))
         if is_exception:
             exc_count += 1
         else:
@@ -211,10 +219,16 @@ async def import_bank_statement(
 
     # ── Generate AI exceptions ─────────────────────────────────────────────────
     exc_num = 1
-    for txn, is_exception in txn_objects:
+    for txn, is_exception, no_ref in txn_objects:
         if not is_exception:
             continue
-        exc_type = exception_types[exc_num % len(exception_types)]
+        # Choose exception type: undocumented if no reference, otherwise rotate
+        if no_ref and txn.amount < 0:
+            exc_type = "undocumented_expense"
+            severity = ExceptionSeverity.HIGH
+        else:
+            exc_type = exception_types[(exc_num % len(exception_types))]
+            severity = ExceptionSeverity.MEDIUM
         ai = generate_ai_explanation(
             exception_type=exc_type,
             bank_date=str(txn.transaction_date),
@@ -233,6 +247,8 @@ async def import_bank_statement(
             suggested_debit=journal["suggested_debit"],
             suggested_credit=journal["suggested_credit"],
             suggested_amount=journal["suggested_amount"],
+            severity=severity,
+            days_outstanding=0,
             status=ExceptionStatus.OPEN,
         )
         db.add(exc)
